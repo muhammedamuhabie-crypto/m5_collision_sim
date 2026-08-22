@@ -1,0 +1,597 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Collision Lab — Momentum & Energy</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#0a0d13;
+    --panel:#11161f;
+    --panel-line:#232b3a;
+    --text:#e7ebf3;
+    --muted:#7c8797;
+    --carA:#4c8dff;
+    --carA-dim:#2a4a8c;
+    --carB:#ff7a45;
+    --carB-dim:#8c4526;
+    --good:#3ddc97;
+    --bad:#ff5d5d;
+    --road:#171d28;
+  }
+  *{box-sizing:border-box;}
+  html,body{
+    margin:0; padding:0; width:100%; height:100%;
+    background:var(--bg); color:var(--text);
+    font-family:'Space Grotesk',sans-serif;
+    overflow:hidden;
+  }
+  #stage{position:fixed; inset:0;}
+  canvas{display:block;}
+
+  .mono{font-family:'JetBrains Mono',monospace;}
+
+  /* ---- Top ledger ---- */
+  #ledger{
+    position:fixed; top:0; left:0; right:0;
+    display:flex; justify-content:center;
+    padding:16px 16px 0 16px;
+    pointer-events:none;
+    z-index:10;
+  }
+  .ledger-card{
+    pointer-events:auto;
+    background:rgba(17,22,31,0.88);
+    border:1px solid var(--panel-line);
+    border-radius:10px;
+    backdrop-filter:blur(6px);
+    padding:12px 22px;
+    display:flex;
+    gap:28px;
+    align-items:center;
+  }
+  .ledger-item{display:flex; flex-direction:column; min-width:118px;}
+  .ledger-label{
+    font-size:10.5px; letter-spacing:.09em; text-transform:uppercase;
+    color:var(--muted); margin-bottom:4px;
+  }
+  .ledger-value{font-size:19px; font-weight:700;}
+  .ledger-sub{font-size:11px; color:var(--muted); margin-top:2px;}
+  .ledger-div{width:1px; height:34px; background:var(--panel-line);}
+  #conserveBadge{
+    display:flex; align-items:center; gap:8px;
+    padding:6px 12px; border-radius:999px;
+    font-size:12px; font-weight:600; letter-spacing:.03em;
+    border:1px solid var(--panel-line);
+    transition:all .3s ease;
+    white-space:nowrap;
+  }
+  .dot{width:8px; height:8px; border-radius:50%; flex-shrink:0;}
+
+  /* ---- Title ---- */
+  #title{
+    position:fixed; top:18px; left:22px; z-index:10;
+    pointer-events:none;
+  }
+  #title h1{
+    margin:0; font-size:15px; font-weight:700; letter-spacing:.02em;
+  }
+  #title span{
+    display:block; font-size:11px; color:var(--muted); margin-top:3px; letter-spacing:.02em;
+  }
+
+  /* ---- Side telemetry ---- */
+  #telemetry{
+    position:fixed; top:96px; left:22px; z-index:10;
+    width:216px;
+    display:flex; flex-direction:column; gap:10px;
+  }
+  .car-panel{
+    background:rgba(17,22,31,0.88);
+    border:1px solid var(--panel-line);
+    border-radius:10px;
+    backdrop-filter:blur(6px);
+    padding:12px 14px;
+  }
+  .car-panel .head{
+    display:flex; align-items:center; gap:8px; margin-bottom:9px;
+  }
+  .swatch{width:11px; height:11px; border-radius:3px;}
+  .car-panel .head b{font-size:12.5px; letter-spacing:.02em;}
+  .row{
+    display:flex; justify-content:space-between; align-items:baseline;
+    font-size:12px; padding:3px 0;
+    color:var(--muted);
+  }
+  .row b{color:var(--text); font-size:12.5px;}
+
+  /* ---- Control deck ---- */
+  #deck{
+    position:fixed; bottom:0; left:0; right:0;
+    display:flex; justify-content:center;
+    padding:0 16px 16px 16px;
+    z-index:10;
+  }
+  .deck-card{
+    background:rgba(17,22,31,0.92);
+    border:1px solid var(--panel-line);
+    border-radius:12px;
+    backdrop-filter:blur(6px);
+    padding:16px 22px;
+    display:flex;
+    gap:26px;
+    align-items:flex-end;
+    flex-wrap:wrap;
+    max-width:96vw;
+  }
+  .ctrl{display:flex; flex-direction:column; width:150px;}
+  .ctrl .lbl{
+    font-size:10.5px; text-transform:uppercase; letter-spacing:.08em;
+    color:var(--muted); margin-bottom:6px;
+    display:flex; justify-content:space-between;
+  }
+  .ctrl .lbl b{color:var(--text); font-family:'JetBrains Mono',monospace; font-weight:500;}
+  input[type=range]{
+    -webkit-appearance:none; width:100%; height:4px;
+    background:var(--panel-line); border-radius:2px; outline:none;
+  }
+  input[type=range]::-webkit-slider-thumb{
+    -webkit-appearance:none; width:15px; height:15px; border-radius:50%;
+    background:var(--text); cursor:pointer; border:3px solid var(--bg);
+    box-shadow:0 0 0 1px var(--panel-line);
+  }
+  input[type=range]#speedA::-webkit-slider-thumb{background:var(--carA);}
+  input[type=range]#speedB::-webkit-slider-thumb{background:var(--carB);}
+  input[type=range]#massA::-webkit-slider-thumb{background:var(--carA);}
+  input[type=range]#massB::-webkit-slider-thumb{background:var(--carB);}
+
+  .btns{display:flex; gap:10px;}
+  button{
+    font-family:'Space Grotesk',sans-serif;
+    font-size:13px; font-weight:600;
+    border-radius:8px; border:1px solid var(--panel-line);
+    padding:11px 18px; cursor:pointer;
+    letter-spacing:.02em;
+    transition:transform .12s ease, background .12s ease;
+  }
+  button:active{transform:scale(0.96);}
+  #runBtn{background:var(--text); color:#0a0d13; border:none;}
+  #runBtn:hover{background:#fff;}
+  #runBtn:disabled{background:#3a4150; color:#7c8797; cursor:not-allowed;}
+  #resetBtn{background:transparent; color:var(--text);}
+  #resetBtn:hover{background:rgba(255,255,255,0.06);}
+
+  #hint{
+    position:fixed; bottom:180px; left:50%; transform:translateX(-50%);
+    font-size:12px; color:var(--muted); z-index:9; pointer-events:none;
+    text-align:center; transition:opacity .4s ease;
+  }
+
+  @media (max-width: 760px){
+    #telemetry{display:none;}
+    .ledger-card{gap:14px; padding:10px 14px;}
+    .ledger-item{min-width:80px;}
+    .ledger-value{font-size:15px;}
+    .deck-card{gap:14px; padding:14px;}
+    .ctrl{width:120px;}
+  }
+</style>
+</head>
+<body>
+
+<div id="stage"></div>
+
+<div id="title">
+  <h1>COLLISION LAB</h1>
+  <span>1D momentum &amp; kinetic energy, rendered in 3D</span>
+</div>
+
+<div id="ledger">
+  <div class="ledger-card">
+    <div class="ledger-item">
+      <div class="ledger-label">Momentum p</div>
+      <div class="ledger-value mono" id="pVal">0 kg·m/s</div>
+      <div class="ledger-sub mono" id="pSub">before = after</div>
+    </div>
+    <div class="ledger-div"></div>
+    <div class="ledger-item">
+      <div class="ledger-label">Kinetic Energy</div>
+      <div class="ledger-value mono" id="keVal">0 J</div>
+      <div class="ledger-sub mono" id="keSub">before → after</div>
+    </div>
+    <div class="ledger-div"></div>
+    <div id="conserveBadge">
+      <div class="dot" id="badgeDot" style="background:var(--muted);"></div>
+      <span id="badgeText">AWAITING COLLISION</span>
+    </div>
+  </div>
+</div>
+
+<div id="telemetry">
+  <div class="car-panel">
+    <div class="head"><div class="swatch" style="background:var(--carA);"></div><b>CAR A</b></div>
+    <div class="row"><span>mass</span><b class="mono" id="tA_mass">1200 kg</b></div>
+    <div class="row"><span>v before</span><b class="mono" id="tA_vBefore">20.0 m/s</b></div>
+    <div class="row"><span>v after</span><b class="mono" id="tA_vAfter">—</b></div>
+  </div>
+  <div class="car-panel">
+    <div class="head"><div class="swatch" style="background:var(--carB);"></div><b>CAR B</b></div>
+    <div class="row"><span>mass</span><b class="mono" id="tB_mass">1200 kg</b></div>
+    <div class="row"><span>v before</span><b class="mono" id="tB_vBefore">0.0 m/s</b></div>
+    <div class="row"><span>v after</span><b class="mono" id="tB_vAfter">—</b></div>
+  </div>
+</div>
+
+<div id="hint">Set masses, speeds and elasticity below, then run the collision.</div>
+
+<div id="deck">
+  <div class="deck-card">
+    <div class="ctrl">
+      <div class="lbl">Mass A <b id="massALbl">1200 kg</b></div>
+      <input type="range" id="massA" min="500" max="3000" step="50" value="1200">
+    </div>
+    <div class="ctrl">
+      <div class="lbl">Mass B <b id="massBLbl">1200 kg</b></div>
+      <input type="range" id="massB" min="500" max="3000" step="50" value="1200">
+    </div>
+    <div class="ctrl">
+      <div class="lbl">Speed A <b id="speedALbl">20.0 m/s</b></div>
+      <input type="range" id="speedA" min="0" max="35" step="0.5" value="20">
+    </div>
+    <div class="ctrl">
+      <div class="lbl">Speed B <b id="speedBLbl">0.0 m/s</b></div>
+      <input type="range" id="speedB" min="-20" max="20" step="0.5" value="0">
+    </div>
+    <div class="ctrl">
+      <div class="lbl">Elasticity e <b id="elastLbl">0.00 (crash)</b></div>
+      <input type="range" id="elast" min="0" max="1" step="0.05" value="0">
+    </div>
+    <div class="btns">
+      <button id="runBtn">Run Collision</button>
+      <button id="resetBtn">Reset</button>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+/* ============================= PHYSICS ============================= */
+function computeCollision(m1, v1, m2, v2, e){
+  // 1D collision with coefficient of restitution e (0 = perfectly inelastic, 1 = perfectly elastic)
+  const v1f = ((m1 - e*m2)*v1 + (1+e)*m2*v2) / (m1+m2);
+  const v2f = ((m2 - e*m1)*v2 + (1+e)*m1*v1) / (m1+m2);
+  return {v1f, v2f};
+}
+function momentum(m,v){ return m*v; }
+function ke(m,v){ return 0.5*m*v*v; }
+
+/* ============================= STATE ============================= */
+const state = {
+  m1: 1200, m2: 1200, v1: 20, v2: 0, e: 0,
+  phase: 'idle', // idle -> running -> collided -> settled
+  x1: -22, x2: 22, // positions along Z axis (world units, 1 unit ~ 1 meter scaled)
+  curV1: 20, curV2: 0,
+  collided: false,
+  postV1: null, postV2: null,
+  wheelSpinA: 0, wheelSpinB: 0
+};
+
+const CAR_HALF_LEN = 2.2; // half length of car body, used for collision detection
+
+/* ============================= UI WIRING ============================= */
+const $ = id => document.getElementById(id);
+const massASlider = $('massA'), massBSlider = $('massB');
+const speedASlider = $('speedA'), speedBSlider = $('speedB');
+const elastSlider = $('elast');
+const runBtn = $('runBtn'), resetBtn = $('resetBtn');
+const hint = $('hint');
+
+function syncLabels(){
+  $('massALbl').textContent = state.m1.toFixed(0) + ' kg';
+  $('massBLbl').textContent = state.m2.toFixed(0) + ' kg';
+  $('speedALbl').textContent = state.v1.toFixed(1) + ' m/s';
+  $('speedBLbl').textContent = state.v2.toFixed(1) + ' m/s';
+  let elastTag = state.e < 0.05 ? '(crash)' : state.e > 0.95 ? '(bounce)' : '(partial)';
+  $('elastLbl').textContent = state.e.toFixed(2) + ' ' + elastTag;
+
+  $('tA_mass').textContent = state.m1.toFixed(0) + ' kg';
+  $('tB_mass').textContent = state.m2.toFixed(0) + ' kg';
+  $('tA_vBefore').textContent = state.v1.toFixed(1) + ' m/s';
+  $('tB_vBefore').textContent = state.v2.toFixed(1) + ' m/s';
+}
+
+function updateLedgerPreCollision(){
+  const p = momentum(state.m1, state.curV1) + momentum(state.m2, state.curV2);
+  const k = ke(state.m1, state.curV1) + ke(state.m2, state.curV2);
+  $('pVal').textContent = p.toFixed(0) + ' kg·m/s';
+  $('keVal').textContent = k.toFixed(0) + ' J';
+  $('pSub').textContent = 'live total';
+  $('keSub').textContent = 'live total';
+}
+
+function updateLedgerPostCollision(){
+  const pBefore = momentum(state.m1, state.v1) + momentum(state.m2, state.v2);
+  const pAfter = momentum(state.m1, state.postV1) + momentum(state.m2, state.postV2);
+  const kBefore = ke(state.m1, state.v1) + ke(state.m2, state.v2);
+  const kAfter = ke(state.m1, state.postV1) + ke(state.m2, state.postV2);
+  const kLost = kBefore - kAfter;
+  const kLostPct = kBefore > 0 ? (100*kLost/kBefore) : 0;
+
+  $('pVal').textContent = pAfter.toFixed(0) + ' kg·m/s';
+  $('pSub').textContent = 'before ' + pBefore.toFixed(0) + ' → after ' + pAfter.toFixed(0);
+
+  $('keVal').textContent = kAfter.toFixed(0) + ' J';
+  $('keSub').textContent = 'before ' + kBefore.toFixed(0) + ' → after ' + kAfter.toFixed(0) +
+    ' (' + (kLostPct>0.5 ? '−'+kLostPct.toFixed(0)+'% lost to heat/deformation' : 'fully conserved') + ')';
+
+  const dot = $('badgeDot'), txt = $('badgeText');
+  const pConserved = Math.abs(pAfter - pBefore) < 0.5;
+  if(kLostPct < 0.5){
+    dot.style.background = 'var(--good)';
+    txt.textContent = 'MOMENTUM & ENERGY CONSERVED';
+    txt.style.color = 'var(--good)';
+  } else {
+    dot.style.background = 'var(--good)';
+    txt.innerHTML = 'MOMENTUM CONSERVED · ENERGY DISSIPATED';
+    txt.style.color = 'var(--text)';
+  }
+
+  $('tA_vAfter').textContent = state.postV1.toFixed(1) + ' m/s';
+  $('tB_vAfter').textContent = state.postV2.toFixed(1) + ' m/s';
+}
+
+function resetBadge(){
+  $('badgeDot').style.background = 'var(--muted)';
+  $('badgeText').textContent = 'AWAITING COLLISION';
+  $('badgeText').style.color = 'var(--muted)';
+  $('tA_vAfter').textContent = '—';
+  $('tB_vAfter').textContent = '—';
+  $('pSub').textContent = 'before = after';
+  $('keSub').textContent = 'before → after';
+}
+
+massASlider.oninput = e => { state.m1 = +e.target.value; syncLabels(); if(state.phase==='idle') resetSim(false); };
+massBSlider.oninput = e => { state.m2 = +e.target.value; syncLabels(); if(state.phase==='idle') resetSim(false); };
+speedASlider.oninput = e => { state.v1 = +e.target.value; syncLabels(); if(state.phase==='idle') resetSim(false); };
+speedBSlider.oninput = e => { state.v2 = +e.target.value; syncLabels(); if(state.phase==='idle') resetSim(false); };
+elastSlider.oninput = e => { state.e = +e.target.value; syncLabels(); };
+
+function resetSim(fullReset){
+  state.phase = 'idle';
+  state.x1 = -22; state.x2 = 22;
+  state.curV1 = state.v1; state.curV2 = state.v2;
+  state.collided = false;
+  state.postV1 = null; state.postV2 = null;
+  runBtn.disabled = false;
+  runBtn.textContent = 'Run Collision';
+  resetBadge();
+  updateLedgerPreCollision();
+  hint.style.opacity = '1';
+  hint.textContent = 'Set masses, speeds and elasticity below, then run the collision.';
+}
+
+runBtn.onclick = () => {
+  if(state.phase === 'running') return;
+  state.phase = 'running';
+  runBtn.disabled = true;
+  runBtn.textContent = 'Running…';
+  hint.style.opacity = '0';
+};
+
+resetBtn.onclick = () => resetSim(true);
+
+/* ============================= THREE.JS SCENE ============================= */
+const stage = document.getElementById('stage');
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x0a0d13);
+scene.fog = new THREE.Fog(0x0a0d13, 60, 140);
+
+const camera = new THREE.PerspectiveCamera(42, window.innerWidth/window.innerHeight, 0.1, 500);
+camera.position.set(0, 16, 34);
+camera.lookAt(0, 1, 0);
+
+const renderer = new THREE.WebGLRenderer({antialias:true});
+renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+stage.appendChild(renderer.domElement);
+
+// lighting
+const hemi = new THREE.HemisphereLight(0x8fa8ff, 0x0a0d13, 0.55);
+scene.add(hemi);
+const sun = new THREE.DirectionalLight(0xffffff, 1.1);
+sun.position.set(-18, 26, 12);
+sun.castShadow = true;
+sun.shadow.mapSize.set(2048,2048);
+sun.shadow.camera.left = -40; sun.shadow.camera.right = 40;
+sun.shadow.camera.top = 40; sun.shadow.camera.bottom = -40;
+sun.shadow.camera.far = 80;
+scene.add(sun);
+const rim = new THREE.DirectionalLight(0x4c8dff, 0.35);
+rim.position.set(20, 8, -15);
+scene.add(rim);
+
+// road
+const roadGeo = new THREE.PlaneGeometry(16, 160);
+const roadMat = new THREE.MeshStandardMaterial({color:0x171d28, roughness:0.95, metalness:0.05});
+const road = new THREE.Mesh(roadGeo, roadMat);
+road.rotation.x = -Math.PI/2;
+road.receiveShadow = true;
+scene.add(road);
+
+// center dashed line
+const dashMat = new THREE.MeshBasicMaterial({color:0x3a4358});
+for(let z=-75; z<75; z+=5){
+  const dash = new THREE.Mesh(new THREE.PlaneGeometry(0.25, 2.4), dashMat);
+  dash.rotation.x = -Math.PI/2;
+  dash.position.set(0, 0.01, z);
+  scene.add(dash);
+}
+// lane edge markers
+[-7.6, 7.6].forEach(x=>{
+  const edge = new THREE.Mesh(new THREE.PlaneGeometry(0.2, 160), new THREE.MeshBasicMaterial({color:0x2a3140}));
+  edge.rotation.x = -Math.PI/2;
+  edge.position.set(x, 0.01, 0);
+  scene.add(edge);
+});
+
+// distance tick marks with subtle grid feel
+const gridHelper = new THREE.GridHelper(160, 40, 0x1a2130, 0x141a26);
+gridHelper.position.y = 0.005;
+scene.add(gridHelper);
+
+/* --- car builder --- */
+function buildCar(bodyColor, dimColor){
+  const group = new THREE.Group();
+
+  const bodyMat = new THREE.MeshStandardMaterial({color: bodyColor, roughness:0.35, metalness:0.55});
+  const cabinMat = new THREE.MeshStandardMaterial({color: dimColor, roughness:0.25, metalness:0.4, transparent:true, opacity:0.88});
+  const wheelMat = new THREE.MeshStandardMaterial({color:0x0d0f14, roughness:0.8});
+  const lightMat = new THREE.MeshBasicMaterial({color:0xfff2c9});
+  const tailMat = new THREE.MeshBasicMaterial({color:0xff3b3b});
+
+  // main body
+  const body = new THREE.Mesh(new THREE.BoxGeometry(2.1, 0.85, 4.2), bodyMat);
+  body.position.y = 0.68;
+  body.castShadow = true; body.receiveShadow = true;
+  group.add(body);
+
+  // lower skirt
+  const skirt = new THREE.Mesh(new THREE.BoxGeometry(2.2, 0.35, 4.4), new THREE.MeshStandardMaterial({color:0x0d0f14, roughness:0.7}));
+  skirt.position.y = 0.28;
+  skirt.castShadow = true;
+  group.add(skirt);
+
+  // cabin
+  const cabin = new THREE.Mesh(new THREE.BoxGeometry(1.7, 0.62, 2.1), cabinMat);
+  cabin.position.set(0, 1.28, -0.25);
+  cabin.castShadow = true;
+  group.add(cabin);
+
+  // wheels
+  const wheelGeo = new THREE.CylinderGeometry(0.42, 0.42, 0.32, 16);
+  const wheelPositions = [
+    [-1.05, 0.42, 1.35],[1.05, 0.42, 1.35],
+    [-1.05, 0.42, -1.35],[1.05, 0.42, -1.35]
+  ];
+  const wheels = [];
+  wheelPositions.forEach(p=>{
+    const w = new THREE.Mesh(wheelGeo, wheelMat);
+    w.rotation.z = Math.PI/2;
+    w.position.set(p[0],p[1],p[2]);
+    w.castShadow = true;
+    group.add(w);
+    wheels.push(w);
+  });
+
+  // headlights / taillights (front = +z, rear = -z for car A moving +z; we'll orient per car)
+  const hl1 = new THREE.Mesh(new THREE.BoxGeometry(0.3,0.16,0.06), lightMat);
+  hl1.position.set(-0.7, 0.72, 2.12); group.add(hl1);
+  const hl2 = hl1.clone(); hl2.position.x = 0.7; group.add(hl2);
+  const tl1 = new THREE.Mesh(new THREE.BoxGeometry(0.3,0.16,0.06), tailMat);
+  tl1.position.set(-0.7, 0.72, -2.12); group.add(tl1);
+  const tl2 = tl1.clone(); tl2.position.x = 0.7; group.add(tl2);
+
+  group.userData.wheels = wheels;
+  return group;
+}
+
+const carA = buildCar(0x4c8dff, 0x1c3f7a);
+const carB = buildCar(0xff7a45, 0x8c4526);
+carB.rotation.y = Math.PI; // face the opposite direction
+scene.add(carA, carB);
+
+// crumple flash effect helper
+function flashImpact(x, y, z){
+  const geo = new THREE.SphereGeometry(0.4, 12, 12);
+  const mat = new THREE.MeshBasicMaterial({color:0xffe08a, transparent:true, opacity:0.9});
+  const spark = new THREE.Mesh(geo, mat);
+  spark.position.set(x,y,z);
+  scene.add(spark);
+  let t = 0;
+  function anim(){
+    t += 0.06;
+    spark.scale.setScalar(1 + t*7);
+    mat.opacity = Math.max(0, 0.9 - t*2.2);
+    if(mat.opacity > 0) requestAnimationFrame(anim);
+    else scene.remove(spark);
+  }
+  anim();
+}
+
+/* ============================= ANIMATION LOOP ============================= */
+const SCALE = 1.0; // meters per world unit
+let lastTime = performance.now();
+
+function positionCars(){
+  carA.position.set(-1.4, 0, state.x1 * SCALE);
+  carB.position.set(1.4, 0, state.x2 * SCALE);
+}
+positionCars();
+updateLedgerPreCollision();
+syncLabels();
+
+function spinWheels(car, v, dt){
+  const spin = (v / 0.42) * dt; // angular vel = v / wheel radius
+  car.userData.wheels.forEach(w => w.rotation.x += spin);
+}
+
+function animate(){
+  requestAnimationFrame(animate);
+  const now = performance.now();
+  const dt = Math.min((now - lastTime)/1000, 0.033);
+  lastTime = now;
+
+  if(state.phase === 'running'){
+    // move cars
+    state.x1 += state.curV1 * dt;
+    state.x2 += state.curV2 * dt;
+
+    // check collision (only once per run)
+    if(!state.collided && (state.x1 + CAR_HALF_LEN) >= (state.x2 - CAR_HALF_LEN)){
+      state.collided = true;
+      const result = computeCollision(state.m1, state.v1, state.m2, state.v2, state.e);
+      state.postV1 = result.v1f;
+      state.postV2 = result.v2f;
+      state.curV1 = result.v1f;
+      state.curV2 = result.v2f;
+      // snap positions so they just touch, no overlap
+      const mid = (state.x1 + state.x2) / 2;
+      state.x1 = mid - CAR_HALF_LEN;
+      state.x2 = mid + CAR_HALF_LEN;
+      flashImpact(0, 0.9, mid * SCALE);
+      updateLedgerPostCollision();
+      runBtn.textContent = 'Run Collision';
+      runBtn.disabled = false;
+      state.phase = 'settled';
+      hint.style.opacity = '1';
+      hint.textContent = 'Collision resolved — adjust parameters and run again, or reset.';
+    }
+
+    positionCars();
+    spinWheels(carA, state.curV1, dt);
+    spinWheels(carB, state.curV2, dt);
+    updateLedgerPreCollision();
+  } else if(state.phase === 'settled'){
+    // let cars drift off with post-collision velocities briefly, then stop naturally at frame edge
+    state.x1 += state.curV1 * dt;
+    state.x2 += state.curV2 * dt;
+    positionCars();
+    spinWheels(carA, state.curV1, dt);
+    spinWheels(carB, state.curV2, dt);
+  }
+
+  renderer.render(scene, camera);
+}
+animate();
+
+window.addEventListener('resize', ()=>{
+  camera.aspect = window.innerWidth/window.innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth, window.innerHeight);
+});
+</script>
+</body>
+</html>
